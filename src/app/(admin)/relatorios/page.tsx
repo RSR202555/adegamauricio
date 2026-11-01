@@ -44,19 +44,10 @@ export default function RelatoriosPage() {
   async function loadReports() {
     setLoading(true);
     try {
-      const startIso = new Date(`${startDate}T00:00:00`).toISOString();
-      const endIso = new Date(`${endDate}T23:59:59`).toISOString();
-
-      const { data, error } = await supabase
-        .from('sales')
-        .select('*, sale_items(*, products(name, barcode))')
-        .eq('status', 'CONCLUIDA')
-        .gte('created_at', startIso)
-        .lte('created_at', endIso)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setSales((data as unknown as Sale[]) || []);
+      const res = await fetch(`/api/sales?startDate=${startDate}&endDate=${endDate}&includeItems=true`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao carregar vendas');
+      setSales((data.sales as unknown as Sale[]) || []);
     } catch (err) {
       console.error('Erro ao carregar relatórios:', err);
     } finally {

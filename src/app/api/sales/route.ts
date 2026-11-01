@@ -1,6 +1,60 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const admin = createAdminClient();
+
+    const isToday = searchParams.get("today") === "true";
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const limit = searchParams.get("limit") ? Number(searchParams.get("limit")) : 200;
+    const includeItems = searchParams.get("includeItems") === "true";
+
+    let query = admin
+      .from("sales")
+      .select(includeItems ? "*, sale_items(*, products(name, barcode))" : "*")
+      .order("created_at", { ascending: false });
+
+    if (isToday) {
+      // Início do dia no fuso de Brasília (UTC-3)
+      const now = new Date();
+      const brDateStr = now.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+      const startOfDay = new Date(`${brDateStr}T00:00:00-03:00`).toISOString();
+      query = query.gte("created_at", startOfDay);
+    } else {
+      if (startDate) {
+        const startIso = startDate.includes("T")
+          ? startDate
+          : new Date(`${startDate}T00:00:00`).toISOString();
+        query = query.gte("created_at", startIso);
+      }
+      if (endDate) {
+        const endIso = endDate.includes("T")
+          ? endDate
+          : new Date(`${endDate}T23:59:59.999`).toISOString();
+        query = query.lte("created_at", endIso);
+      }
+    }
+
+    const { data: sales, error } = await query.limit(limit);
+
+    if (error) {
+      console.error("[/api/sales GET] Erro ao buscar vendas:", error);
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true, sales: sales || [] });
+  } catch (err: any) {
+    console.error("[/api/sales GET] Erro interno:", err);
+    return NextResponse.json(
+      { error: err.message || "Erro interno ao buscar vendas" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();

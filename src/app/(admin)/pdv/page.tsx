@@ -74,8 +74,10 @@ export default function PDVFrenteDeCaixaPage() {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
-  // Controle de Impressão Térmica (POS-80)
-  const [autoPrint, setAutoPrint] = useState<boolean>(false);
+  // Controle de Impressão Térmica (POS-80) - Padrão AUTOMÁTICO ativado
+  const [autoPrint, setAutoPrint] = useState<boolean>(true);
+  const [autoCloseModal, setAutoCloseModal] = useState<boolean>(true);
+  const [countdown, setCountdown] = useState<number>(3);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [activePrintData, setActivePrintData] = useState<ReceiptData | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -133,6 +135,17 @@ export default function PDVFrenteDeCaixaPage() {
       const savedAutoPrint = localStorage.getItem('adega_mauricio_auto_print') || localStorage.getItem('adega_mauri_auto_print');
       if (savedAutoPrint !== null) {
         setAutoPrint(savedAutoPrint === 'true');
+      } else {
+        setAutoPrint(true);
+        try { localStorage.setItem('adega_mauricio_auto_print', 'true'); } catch {}
+      }
+
+      const savedAutoClose = localStorage.getItem('adega_mauricio_auto_close_modal');
+      if (savedAutoClose !== null) {
+        setAutoCloseModal(savedAutoClose === 'true');
+      } else {
+        setAutoCloseModal(true);
+        try { localStorage.setItem('adega_mauricio_auto_close_modal', 'true'); } catch {}
       }
 
       const storedPending = localStorage.getItem('adega_mauricio_pending_sales') || localStorage.getItem('adega_mauri_pending_sales');
@@ -226,6 +239,29 @@ export default function PDVFrenteDeCaixaPage() {
     }
   }
 
+  // Avanço automático opcional para a próxima venda após impressão
+  useEffect(() => {
+    if (!completedSale || !autoCloseModal) {
+      setCountdown(3);
+      return;
+    }
+
+    setCountdown(3);
+    const interval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setCompletedSale(null);
+          focusScanner();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [completedSale, autoCloseModal]);
+
   useEffect(() => {
     loadProducts();
     focusScanner();
@@ -235,14 +271,15 @@ export default function PDVFrenteDeCaixaPage() {
       if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return;
 
       if (completedSale) {
-        if (e.key === 'Enter' || e.key === 'F9') {
+        if (e.key === 'F9') {
           e.preventDefault();
           handlePrintReceipt(completedSale);
           return;
         }
-        if (e.key === 'Escape') {
+        if (e.key === 'Enter' || e.key === 'Escape' || e.key === ' ') {
           e.preventDefault();
           setCompletedSale(null);
+          focusScanner();
           return;
         }
       }
@@ -306,6 +343,9 @@ export default function PDVFrenteDeCaixaPage() {
         barcodeBufferRef.current = '';
         if (buffer.length >= 4 && document.activeElement !== barcodeInputRef.current) {
           e.preventDefault();
+          if (completedSale) {
+            setCompletedSale(null);
+          }
           findAndAddByBarcode(buffer);
         }
       } else if (e.key.length === 1) {
@@ -316,7 +356,7 @@ export default function PDVFrenteDeCaixaPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, products, isSearchModalOpen, isCheckoutOpen, completedSale, isTestModalOpen, activePrintData, autoPrint]);
+  }, [cart, products, isSearchModalOpen, isCheckoutOpen, completedSale, isTestModalOpen, activePrintData, autoPrint, autoCloseModal]);
 
   function focusScanner() {
     setTimeout(() => {
@@ -731,10 +771,9 @@ export default function PDVFrenteDeCaixaPage() {
       setCustomerName('');
       setCustomerDoc('');
 
+      // Dispara a impressão imediatamente sem necessidade de clique
       if (autoPrint) {
-        setTimeout(() => {
-          handlePrintReceipt(saleReceipt);
-        }, 200);
+        handlePrintReceipt(formatted);
       }
     } catch (err: any) {
       alert('Falha ao processar venda no PDV: ' + err.message);
@@ -781,10 +820,37 @@ export default function PDVFrenteDeCaixaPage() {
     setActivePrintData(formatted);
     setIsPrinting(true);
 
-    // 1. Tenta envio direto para o Windows Spooler via backend local (/api/print)
+    // 1. Tenta envio direto para o Agente Local (http://127.0.0.1:9123/print) se estiver rodando
+    try {
+      const agentCtrl = new AbortController();
+      const agentTimeout = setTimeout(() => agentCtrl.abort(), 800);
+
+      const agentRes = await fetch('http://127.0.0.1:9123/print', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer mauri-pos-secret-2026',
+        },
+        body: JSON.stringify({
+          type: 'SALE',
+          data: formatted,
+        }),
+        signal: agentCtrl.signal,
+      });
+      clearTimeout(agentTimeout);
+
+      if (agentRes.ok) {
+        setIsPrinting(false);
+        return;
+      }
+    } catch {
+      // Agente local não respondeu, tenta endpoint /api/print
+    }
+
+    // 2. Tenta envio direto para o Windows Spooler via backend local (/api/print)
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
 
       const response = await fetch('/api/print', {
         method: 'POST',
@@ -807,11 +873,11 @@ export default function PDVFrenteDeCaixaPage() {
       // Falha ou timeout -> prossegue para impressão via navegador
     }
 
-    // 2. Dispara a impressão isolada dedicada para a bobina POS-80 (evita corte de estilos ou tela em branco)
+    // 3. Fallback: dispara a impressão isolada dedicada para a bobina POS-80 (evita corte de estilos ou tela em branco)
     setTimeout(() => {
       printThermalReceipt(formatted);
       setIsPrinting(false);
-    }, 100);
+    }, 50);
   }
 
   // ============================================================================
@@ -936,6 +1002,13 @@ export default function PDVFrenteDeCaixaPage() {
     setAutoPrint(val);
     try {
       localStorage.setItem('adega_mauricio_auto_print', val ? 'true' : 'false');
+    } catch {}
+  }
+
+  function toggleAutoClose(val: boolean) {
+    setAutoCloseModal(val);
+    try {
+      localStorage.setItem('adega_mauricio_auto_close_modal', val ? 'true' : 'false');
     } catch {}
   }
 
@@ -1776,7 +1849,7 @@ export default function PDVFrenteDeCaixaPage() {
       )}
 
       {/* =========================================================================
-          MODAL PÓS-VENDA (COMPROVANTE DE CUPOM)
+          MODAL PÓS-VENDA (COMPROVANTE DE CUPOM COM IMPRESSÃO AUTOMÁTICA)
           ========================================================================= */}
       {completedSale && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
@@ -1797,41 +1870,76 @@ export default function PDVFrenteDeCaixaPage() {
               )}
             </div>
 
+            {/* Destaque de Troco para o Caixa */}
+            {completedSale.troco > 0 && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-2.5 text-center">
+                <span className="text-[11px] text-emerald-400 font-bold block uppercase tracking-wider">Troco do Cliente</span>
+                <span className="text-2xl font-black text-emerald-300 font-mono">
+                  {formatCurrency(completedSale.troco)}
+                </span>
+              </div>
+            )}
+
+            {/* Status da Impressão Automática */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+              <Printer className={`w-3.5 h-3.5 ${isPrinting ? 'animate-bounce' : ''}`} />
+              <span>{isPrinting ? 'Enviando cupom para impressão...' : 'Cupom impresso automaticamente'}</span>
+            </div>
+
             {/* Prévia do Cupom Térmico */}
-            <div className="bg-white rounded-2xl p-2.5 shadow-inner text-left max-h-52 overflow-y-auto border border-stone-400">
+            <div className="bg-white rounded-2xl p-2.5 shadow-inner text-left max-h-48 overflow-y-auto border border-stone-400">
               {activePrintData && <ThermalReceipt data={activePrintData} />}
             </div>
 
-            <div className="flex items-center justify-between px-1 text-xs text-stone-300">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={autoPrint}
-                  onChange={(e) => toggleAutoPrint(e.target.checked)}
-                  className="rounded border-stone-700 text-amber-500 focus:ring-amber-500 w-4 h-4 bg-stone-900"
-                />
-                <span className="text-[11px]">Auto-imprimir vendas</span>
-              </label>
-              <span className="text-[10px] text-amber-400 font-mono font-bold">POS-80 (80mm)</span>
+            <div className="flex flex-col gap-1.5 px-1 text-xs text-stone-300 text-left pt-1">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={autoPrint}
+                    onChange={(e) => toggleAutoPrint(e.target.checked)}
+                    className="rounded border-stone-700 text-amber-500 focus:ring-amber-500 w-4 h-4 bg-stone-900"
+                  />
+                  <span className="text-[11px]">Auto-imprimir vendas</span>
+                </label>
+                <span className="text-[10px] text-amber-400 font-mono font-bold">POS-80 (80mm)</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={autoCloseModal}
+                    onChange={(e) => toggleAutoClose(e.target.checked)}
+                    className="rounded border-stone-700 text-amber-500 focus:ring-amber-500 w-4 h-4 bg-stone-900"
+                  />
+                  <span className="text-[11px] text-stone-400">
+                    {autoCloseModal ? `Próxima venda automática (${countdown}s)` : 'Avançar automaticamente'}
+                  </span>
+                </label>
+              </div>
             </div>
 
             <div className="flex gap-2 pt-1">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setCompletedSale(null)}
-                className="flex-1 text-xs"
+                onClick={() => handlePrintReceipt(completedSale)}
+                disabled={isPrinting}
+                className="flex-1 text-xs border-stone-800 text-stone-300 hover:text-white"
               >
-                Nova Venda (Esc)
+                <Printer className="w-3.5 h-3.5 mr-1" />
+                {isPrinting ? 'Enviando...' : 'Reimprimir (F9)'}
               </Button>
               <Button
                 type="button"
-                onClick={() => handlePrintReceipt(completedSale)}
-                disabled={isPrinting}
+                onClick={() => {
+                  setCompletedSale(null);
+                  focusScanner();
+                }}
                 className="flex-1 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20"
               >
-                <Printer className="w-4 h-4" />
-                {isPrinting ? 'Enviando...' : 'Imprimir (F9)'}
+                Nova Venda {autoCloseModal ? `(${countdown}s)` : '(Enter)'}
               </Button>
             </div>
           </div>

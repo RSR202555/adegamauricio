@@ -161,16 +161,13 @@ export default function ProdutosPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [prodRes, catRes] = await Promise.all([
-        fetch('/api/products').then(res => res.json()),
-        supabase.from('categories').select('*').eq('is_active', true).order('name')
-      ]);
+      const res = await fetch('/api/products');
+      const prodRes = await res.json();
 
       if (prodRes.error) throw new Error(prodRes.error);
-      if (catRes.error) throw catRes.error;
 
       setProducts(prodRes.products || []);
-      setCategories(catRes.data || []);
+      setCategories(prodRes.categories || []);
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
     } finally {

@@ -41,23 +41,11 @@ export default function CaixaFinanceiroPage() {
   async function loadSession() {
     setLoading(true);
     try {
-      const { data: sessionData } = await supabase
-        .from('cash_sessions')
-        .select('*')
-        .eq('status', 'ABERTA')
-        .order('opened_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (sessionData) {
-        setActiveSession(sessionData as CashSession);
-        const { data: movData } = await supabase
-          .from('cash_movements')
-          .select('*')
-          .eq('session_id', sessionData.id)
-          .order('created_at', { ascending: false });
-
-        if (movData) setMovements(movData as CashMovement[]);
+      const res = await fetch('/api/cash');
+      const data = await res.json();
+      if (res.ok && data.session) {
+        setActiveSession(data.session as CashSession);
+        setMovements((data.movements as CashMovement[]) || []);
       } else {
         setActiveSession(null);
         setMovements([]);
@@ -75,15 +63,20 @@ export default function CaixaFinanceiroPage() {
     setProcessing(true);
     try {
       const val = parseFloat(amountInput) || 0;
-      const { error } = await supabase.from('cash_sessions').insert({
-        company_id: '00000000-0000-0000-0000-000000000001',
-        terminal_number: 1,
-        opening_balance: val,
-        status: 'ABERTA',
-        notes: notesInput || 'Abertura de Caixa Diário'
+      const res = await fetch('/api/cash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'open',
+          terminal_number: 1,
+          opening_balance: val,
+          notes: notesInput || 'Abertura de Caixa Diário',
+        }),
       });
 
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao abrir caixa');
+
       setModalType(null);
       setAmountInput('');
       setNotesInput('');
@@ -104,15 +97,21 @@ export default function CaixaFinanceiroPage() {
       const val = parseFloat(amountInput) || 0;
       const type = modalType === 'SANGRIA' ? 'SANGRIA' : 'SUPRIMENTO';
 
-      const { error } = await supabase.from('cash_movements').insert({
-        company_id: activeSession.company_id,
-        session_id: activeSession.id,
-        movement_type: type,
-        amount: val,
-        notes: notesInput || (type === 'SANGRIA' ? 'Retirada de Sangria' : 'Aporte de Suprimento')
+      const res = await fetch('/api/cash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'movement',
+          session_id: activeSession.id,
+          movement_type: type,
+          amount: val,
+          notes: notesInput || (type === 'SANGRIA' ? 'Retirada de Sangria' : 'Aporte de Suprimento'),
+        }),
       });
 
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao registrar movimentação');
+
       setModalType(null);
       setAmountInput('');
       setNotesInput('');
@@ -135,16 +134,22 @@ export default function CaixaFinanceiroPage() {
         movements.reduce((acc, m) => m.movement_type === 'SUPRIMENTO' ? acc + Number(m.amount) : acc - Number(m.amount), 0);
       const diff = actualVal - expectedVal;
 
-      const { error } = await supabase.from('cash_sessions').update({
-        status: 'FECHADA',
-        closed_at: new Date().toISOString(),
-        closing_expected_balance: expectedVal,
-        closing_actual_balance: actualVal,
-        closing_difference: diff,
-        notes: notesInput || 'Fechamento de turno'
-      }).eq('id', activeSession.id);
+      const res = await fetch('/api/cash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'close',
+          session_id: activeSession.id,
+          closing_expected_balance: expectedVal,
+          closing_actual_balance: actualVal,
+          closing_difference: diff,
+          notes: notesInput || 'Fechamento de turno',
+        }),
+      });
 
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao fechar caixa');
+
       alert(`Caixa fechado com sucesso! Diferença apurada: ${formatCurrency(diff)}`);
       setModalType(null);
       setClosingActualAmount('');

@@ -37,27 +37,50 @@ export default function DashboardPage() {
   async function loadDashboardData() {
     setLoading(true);
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
       const [salesRes, prodRes, tabRes] = await Promise.all([
-        supabase
-          .from('sales')
-          .select('*')
-          .gte('created_at', today.toISOString())
-          .order('created_at', { ascending: false }),
+        fetch('/api/sales?today=true').then(res => res.json()).catch(() => ({ sales: [] })),
         fetch('/api/products').then(res => res.json()).catch(() => ({ products: [] })),
-        supabase
-          .from('tabs')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'ABERTA')
+        fetch('/api/tabs').then(res => res.json()).catch(() => ({ tabs: [] })),
       ]);
 
-      if (salesRes.data) setSales(salesRes.data as Sale[]);
+      let salesList: Sale[] = Array.isArray(salesRes?.sales) ? salesRes.sales : [];
+
+      // Também inclui vendas que possam ter sido salvas no modo offline localmente e ainda não sincronizadas
+      try {
+        const rawPending = localStorage.getItem('adega_mauricio_pending_sales') || localStorage.getItem('adega_mauri_pending_sales');
+        if (rawPending) {
+          const pending = JSON.parse(rawPending);
+          if (Array.isArray(pending) && pending.length > 0) {
+            const existingIds = new Set(salesList.map((s: any) => s.id));
+            const todayStr = new Date().toLocaleDateString('en-CA');
+            for (const p of pending) {
+              const pDate = p.created_at ? p.created_at.slice(0, 10) : todayStr;
+              if (pDate === todayStr && !existingIds.has(p.offline_id)) {
+                salesList.push({
+                  id: p.offline_id || p.id,
+                  company_id: p.company_id,
+                  sale_number: p.offline_id,
+                  sale_type: p.sale_type || 'BALCAO',
+                  payment_method: p.payment_method,
+                  total_amount: p.total_amount,
+                  discount_amount: p.discount_amount || 0,
+                  final_amount: p.final_amount,
+                  customer_name: p.customer_name,
+                  customer_cpf: p.customer_cpf,
+                  status: 'CONCLUIDA',
+                  created_at: p.created_at || new Date().toISOString(),
+                } as any);
+              }
+            }
+          }
+        }
+      } catch {}
+
+      setSales(salesList);
       const productList = prodRes.products || [];
       const low = productList.filter((p: Product) => p.current_stock <= p.min_stock);
       setLowStockProducts(low as Product[]);
-      if (tabRes.count !== null) setOpenTabsCount(tabRes.count);
+      setOpenTabsCount(Array.isArray(tabRes?.tabs) ? tabRes.tabs.length : 0);
       setLastUpdated(new Date().toLocaleTimeString('pt-BR'));
     } catch (err) {
       console.error('Erro ao carregar métricas:', err);

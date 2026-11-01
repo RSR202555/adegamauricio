@@ -7,19 +7,26 @@ let memoryCachedProducts: any[] = [];
 export async function GET() {
   try {
     const admin = createAdminClient();
-    const { data, error } = await admin.from("products").select("*").order("name");
+    const [prodRes, catRes] = await Promise.all([
+      admin.from("products").select("*").order("name"),
+      admin.from("categories").select("*").eq("is_active", true).order("name"),
+    ]);
+
+    const { data, error } = prodRes;
+    const categories = catRes.data || [];
+
     if (!error && data && data.length > 0) {
       const parsed = data.map(parseProductMetadata);
       memoryCachedProducts = parsed;
-      return NextResponse.json({ products: parsed, source: "live" });
+      return NextResponse.json({ products: parsed, categories, source: "live" });
     }
     if (memoryCachedProducts.length > 0) {
-      return NextResponse.json({ products: memoryCachedProducts, source: "cache", warning: "Offline cache ativo" });
+      return NextResponse.json({ products: memoryCachedProducts, categories, source: "cache", warning: "Offline cache ativo" });
     }
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    return NextResponse.json({ products: [] });
+    return NextResponse.json({ products: [], categories });
   } catch (err: any) {
     if (memoryCachedProducts.length > 0) {
       return NextResponse.json({ products: memoryCachedProducts, source: "cache", warning: "Offline cache ativo" });

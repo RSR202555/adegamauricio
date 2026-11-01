@@ -152,6 +152,16 @@ export default function EstoquePage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return;
 
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        activeEl !== document.body &&
+        activeEl !== barcodeInputRef.current &&
+        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')
+      ) {
+        return;
+      }
+
       const now = Date.now();
       const timeDiff = now - lastKeyTimeRef.current;
       lastKeyTimeRef.current = now;
@@ -176,6 +186,15 @@ export default function EstoquePage() {
 
   function focusReceivingScanner() {
     setTimeout(() => {
+      const active = document.activeElement;
+      if (
+        active &&
+        active !== document.body &&
+        active !== barcodeInputRef.current &&
+        (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')
+      ) {
+        return;
+      }
       barcodeInputRef.current?.focus();
     }, 100);
   }

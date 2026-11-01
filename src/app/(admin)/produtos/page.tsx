@@ -183,6 +183,16 @@ export default function ProdutosPage() {
       // Ignorar teclas modificadoras
       if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return;
 
+      // Se o usuário estiver digitando em qualquer campo de formulário ou busca, não intercepta
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        activeEl !== document.body &&
+        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')
+      ) {
+        return;
+      }
+
       const now = Date.now();
       const timeDiff = now - lastKeyTimeRef.current;
       lastKeyTimeRef.current = now;

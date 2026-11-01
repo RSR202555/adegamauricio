@@ -262,13 +262,34 @@ export default function PDVFrenteDeCaixaPage() {
     return () => clearInterval(interval);
   }, [completedSale, autoCloseModal]);
 
+  // Carrega catálogo inicial na montagem
   useEffect(() => {
     loadProducts();
     focusScanner();
+  }, []);
 
-    // Atalhos clássicos de teclado de frente de caixa
+  // Atalhos de teclado do PDV e leitor de código de barras
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return;
+
+      // Verifica se o usuário está focado em algum campo de digitação (Desconto, Cliente, CPF, Busca, etc.)
+      const activeEl = document.activeElement;
+      const isTypingInOtherInput =
+        activeEl &&
+        activeEl !== document.body &&
+        activeEl !== barcodeInputRef.current &&
+        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
+
+      if (isTypingInOtherInput) {
+        // Se o operador pressionar Escape dentro de um input, desseleciona e volta o foco para o scanner
+        if (e.key === 'Escape') {
+          (activeEl as HTMLElement).blur();
+          focusScanner();
+        }
+        // NÃO intercepta as teclas normais para permitir digitação livre em todos os campos!
+        return;
+      }
 
       if (completedSale) {
         if (e.key === 'F9') {
@@ -356,10 +377,20 @@ export default function PDVFrenteDeCaixaPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, products, isSearchModalOpen, isCheckoutOpen, completedSale, isTestModalOpen, activePrintData, autoPrint, autoCloseModal]);
+  }, [cart, isSearchModalOpen, isCheckoutOpen, completedSale, isTestModalOpen, activePrintData]);
 
   function focusScanner() {
     setTimeout(() => {
+      // Se o usuário está com o cursor em outro campo (Desconto, CPF, Busca, etc.), NUNCA rouba o foco!
+      const active = document.activeElement;
+      if (
+        active &&
+        active !== document.body &&
+        active !== barcodeInputRef.current &&
+        (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')
+      ) {
+        return;
+      }
       barcodeInputRef.current?.focus();
     }, 100);
   }
@@ -1390,6 +1421,13 @@ export default function PDVFrenteDeCaixaPage() {
                   onChange={(e) => {
                     const clean = e.target.value.replace(/[^0-9.,]/g, '');
                     setDiscountInput(clean);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.stopPropagation();
+                      (e.target as HTMLElement).blur();
+                      focusScanner();
+                    }
                   }}
                   placeholder="0,00"
                   className="w-full bg-stone-950 border border-stone-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl pl-9 pr-9 py-2 text-right font-mono text-base font-black text-amber-300 focus:outline-none"

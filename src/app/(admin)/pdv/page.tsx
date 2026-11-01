@@ -814,9 +814,9 @@ export default function PDVFrenteDeCaixaPage() {
   }
 
   // ============================================================================
-  // IMPRESSÃO TÉRMICA DIRETA (AGENTE LOCAL OU NAVEGADOR POS-80)
+  // IMPRESSÃO TÉRMICA DIRETA (SERVIÇO LOCAL POS-80 OU NAVEGADOR)
   // ============================================================================
-  async function handlePrintReceipt(saleData?: any) {
+  async function handlePrintReceipt(saleData?: any, forceBrowser = false) {
     const rawReceipt = saleData || completedSale || activePrintData;
     if (!rawReceipt) return;
 
@@ -851,16 +851,13 @@ export default function PDVFrenteDeCaixaPage() {
     setActivePrintData(formatted);
     setIsPrinting(true);
 
-    // Se estiver rodando localmente (localhost), pode tentar envio direto ao spooler do Windows
-    const isLocalhost = typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-    if (isLocalhost) {
+    if (!forceBrowser) {
+      // 1. Tenta envio direto e silencioso para o Serviço Local de Impressão na porta 9123
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 1200);
 
-        const response = await fetch('/api/print', {
+        const response = await fetch('http://127.0.0.1:9123/print', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -875,15 +872,22 @@ export default function PDVFrenteDeCaixaPage() {
         const resData = await response.json().catch(() => null);
         if (response.ok && resData?.success) {
           setIsPrinting(false);
-          return;
+          return; // Sucesso silencioso! O diálogo do navegador NUNCA é aberto.
         }
       } catch {
-        // Segue para impressão nativa via navegador
+        // Se a chamada HTTP direta falhar por bloqueio de rede privada,
+        // o serviço em background no Windows já detecta a venda salva no Supabase
+        // e imprime automaticamente sem precisar abrir janelas.
+        setIsPrinting(false);
+        return;
       }
     }
 
-    // DISPARO IMEDIATO VIA NAVEGADOR (SEM ATRASO DE REDE PARA NÃO SER BLOQUEADO PELO NAVEGADOR)
-    printThermalReceipt(formatted);
+    // 2. Se o usuário clicou explicitamente em "Via Navegador", abre o diálogo
+    if (forceBrowser) {
+      printThermalReceipt(formatted);
+    }
+
     setTimeout(() => {
       setIsPrinting(false);
     }, 600);
@@ -1940,12 +1944,21 @@ export default function PDVFrenteDeCaixaPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handlePrintReceipt(completedSale)}
+                onClick={() => handlePrintReceipt(completedSale, false)}
                 disabled={isPrinting}
                 className="flex-1 text-xs border-stone-800 text-stone-300 hover:text-white"
               >
                 <Printer className="w-3.5 h-3.5 mr-1" />
                 {isPrinting ? 'Enviando...' : 'Reimprimir (F9)'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => handlePrintReceipt(completedSale, true)}
+                className="text-xs px-2.5 border-stone-800 text-stone-400 hover:text-white"
+                title="Abrir pré-visualização do navegador"
+              >
+                Via Navegador
               </Button>
               <Button
                 type="button"

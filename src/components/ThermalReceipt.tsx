@@ -279,12 +279,12 @@ export function generateThermalReceiptHtml(data: ReceiptData): string {
         ? `${item.quantity} cx (${item.boxUnits || 1} un) x ${formatCurrency(item.unitPrice)}`
         : `${item.quantity} un x ${formatCurrency(item.unitPrice)}`;
       return `
-        <div style="margin-bottom: 4px;">
-          <div style="display: flex; justify-content: space-between; font-weight: bold;">
-            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 4px;">${itemNumber} ${item.name}</span>
-            <span>${formatCurrency(item.totalPrice)}</span>
+        <div style="margin-bottom: 3px;">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; font-weight: bold; font-size: 9.5px;">
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 4px; max-width: 44mm;">${itemNumber} ${item.name}</span>
+            <span style="white-space: nowrap;">${formatCurrency(item.totalPrice)}</span>
           </div>
-          <div style="font-size: 10px; color: #333; padding-left: 14px;">${detail}</div>
+          <div style="font-size: 8.5px; color: #444; padding-left: 12px;">${detail}</div>
         </div>
       `;
     })
@@ -299,23 +299,23 @@ export function generateThermalReceiptHtml(data: ReceiptData): string {
   <style>
     @page {
       size: auto;
-      margin: 0;
+      margin: 0mm !important;
     }
     * {
-      box-sizing: border-box;
+      box-sizing: border-box !important;
       margin: 0;
       padding: 0;
     }
     html, body {
-      width: 76mm;
-      max-width: 76mm;
-      margin: 0 auto;
-      padding: 2mm 2mm 4mm 2mm;
+      width: 66mm !important;
+      max-width: 66mm !important;
+      margin: 0 auto !important;
+      padding: 1mm 1mm 4mm 1mm !important;
       background: #ffffff !important;
       color: #000000 !important;
       font-family: 'Courier New', Courier, monospace;
-      font-size: 11px;
-      line-height: 1.25;
+      font-size: 10px;
+      line-height: 1.22;
       height: auto !important;
       overflow: visible !important;
       -webkit-print-color-adjust: exact !important;
@@ -324,13 +324,13 @@ export function generateThermalReceiptHtml(data: ReceiptData): string {
     .text-center { text-align: center; }
     .text-right { text-align: right; }
     .bold { font-weight: bold; }
-    .extrabold { font-weight: 800; font-size: 14px; }
-    .divider { border-top: 1px dashed #000; margin: 4px 0; }
-    .row { display: flex; justify-content: space-between; }
-    .logo-container { text-align: center; margin-bottom: 4px; }
+    .extrabold { font-weight: 800; font-size: 12.5px; }
+    .divider { border-top: 1px dashed #000; margin: 3px 0; }
+    .row { display: flex; justify-content: space-between; align-items: baseline; width: 100%; }
+    .logo-container { text-align: center; margin-bottom: 3px; }
     .logo-img {
-      max-width: 110px;
-      max-height: 110px;
+      max-width: 85px;
+      max-height: 85px;
       display: inline-block;
       margin: 0 auto;
       object-fit: contain;
@@ -341,7 +341,7 @@ export function generateThermalReceiptHtml(data: ReceiptData): string {
       padding: 2px 4px;
       margin: 2px 0;
       text-align: center;
-      font-size: 10px;
+      font-size: 9px;
       background: #f0f0f0;
     }
     .cut-line {
@@ -367,32 +367,32 @@ export function generateThermalReceiptHtml(data: ReceiptData): string {
     ${data.isTest ? '<div class="test-badge">*** TESTE DE IMPRESSÃO ***</div>' : ''}
     ${data.isQuotation ? '<div class="test-badge">*** ORÇAMENTO / COTAÇÃO ***</div>' : ''}
     <div class="extrabold">${data.companyTradeName || 'ADEGA DE MAURICIO'}</div>
-    <div style="font-size: 10px; font-weight: bold;">${data.companyName || 'Adega e Depósito Mauricio Ltda'}</div>
-    ${data.companyDoc ? `<div style="font-size: 10px;">CNPJ: ${data.companyDoc}</div>` : ''}
-    ${data.companyAddress ? `<div style="font-size: 10px;">${data.companyAddress}</div>` : ''}
-    ${data.companyPhone ? `<div style="font-size: 10px;">Tel: ${data.companyPhone}</div>` : ''}
+    <div style="font-size: 9.5px; font-weight: bold;">${data.companyName || 'Adega e Depósito Mauricio Ltda'}</div>
+    ${data.companyDoc ? `<div style="font-size: 9px;">CNPJ: ${data.companyDoc}</div>` : ''}
+    ${data.companyAddress ? `<div style="font-size: 9px;">${data.companyAddress}</div>` : ''}
+    ${data.companyPhone ? `<div style="font-size: 9px;">Tel: ${data.companyPhone}</div>` : ''}
   </div>
 
   <div class="divider"></div>
 
-  <div class="text-center bold" style="font-size: 11px;">
+  <div class="text-center bold" style="font-size: 10px;">
     ${data.isQuotation ? 'ORÇAMENTO (SEM VALOR FISCAL)' : 'CUPOM NÃO FISCAL'}
   </div>
-  <div class="row" style="font-size: 10px;">
+  <div class="row" style="font-size: 9.5px;">
     <span>${data.isQuotation ? 'ORÇAMENTO:' : 'VENDA:'} #${saleNumber}</span>
     <span>${formattedDate}</span>
   </div>
-  ${data.isQuotation && data.quotationValidity ? `<div class="row" style="font-size: 10px;"><span>VALIDADE:</span><span>${data.quotationValidity}</span></div>` : ''}
-  <div class="row" style="font-size: 10px;">
+  ${data.isQuotation && data.quotationValidity ? `<div class="row" style="font-size: 9.5px;"><span>VALIDADE:</span><span>${data.quotationValidity}</span></div>` : ''}
+  <div class="row" style="font-size: 9.5px;">
     <span>OPERADOR: ${data.operatorName || 'Caixa 01'}</span>
     <span>TERMINAL: PDV-01</span>
   </div>
-  ${data.customerName ? `<div style="font-size: 10px;">CLIENTE: ${data.customerName}</div>` : ''}
-  ${data.customerDoc ? `<div style="font-size: 10px;">CPF: ${data.customerDoc}</div>` : ''}
+  ${data.customerName ? `<div style="font-size: 9.5px;">CLIENTE: ${data.customerName}</div>` : ''}
+  ${data.customerDoc ? `<div style="font-size: 9.5px;">CPF: ${data.customerDoc}</div>` : ''}
 
   <div class="divider"></div>
 
-  <div class="row bold" style="font-size: 10px; border-bottom: 1px solid #000; padding-bottom: 2px; margin-bottom: 4px;">
+  <div class="row bold" style="font-size: 9.5px; border-bottom: 1px solid #000; padding-bottom: 2px; margin-bottom: 3px;">
     <span>DESCRIÇÃO</span>
     <span>TOTAL</span>
   </div>
@@ -401,44 +401,44 @@ export function generateThermalReceiptHtml(data: ReceiptData): string {
 
   <div class="divider"></div>
 
-  <div class="row" style="font-size: 10px;">
+  <div class="row" style="font-size: 9.5px;">
     <span>Qtd Total de Itens:</span>
     <span>${data.items.reduce((acc, i) => acc + i.quantity, 0)}</span>
   </div>
-  <div class="row" style="font-size: 10px;">
+  <div class="row" style="font-size: 9.5px;">
     <span>Subtotal:</span>
     <span>${formatCurrency(data.subtotal)}</span>
   </div>
   ${
     (data.discountAmount || 0) > 0
       ? `
-    <div class="row" style="font-size: 10px;">
+    <div class="row" style="font-size: 9.5px;">
       <span>Desconto:</span>
       <span>- ${formatCurrency(data.discountAmount || 0)}</span>
     </div>
   `
       : ''
   }
-  <div class="row bold" style="font-size: 13px; border-top: 1px solid #000; padding-top: 4px; margin-top: 2px;">
+  <div class="row bold" style="font-size: 12px; border-top: 1px solid #000; padding-top: 3px; margin-top: 2px;">
     <span>${data.isQuotation ? 'TOTAL ESTIMADO:' : 'TOTAL A PAGAR:'}</span>
     <span>${formatCurrency(data.totalFinal)}</span>
   </div>
 
   ${!data.isQuotation ? `
     <div class="divider"></div>
-    <div class="row" style="font-size: 10px;">
+    <div class="row" style="font-size: 9.5px;">
       <span>FORMA PGTO:</span>
       <span class="bold" style="text-transform: uppercase;">${data.paymentMethod === 'FIADO' ? 'A PRAZO / FIADO' : data.paymentMethod}</span>
     </div>
     ${
       data.paymentMethod === 'FIADO'
         ? `
-      <div class="row bold" style="font-size: 10px; color: #900;">
+      <div class="row bold" style="font-size: 9.5px; color: #900;">
         <span>STATUS:</span>
         <span>PENDENTE DE PAGAMENTO</span>
       </div>
       <div style="margin-top: 10px; text-align: center; border-top: 1px dashed #000; padding-top: 6px;">
-        <div style="font-size: 9px; font-style: italic;">Reconheço a dívida acima discriminada.</div>
+        <div style="font-size: 8.5px; font-style: italic;">Reconheço a dívida acima discriminada.</div>
         <div style="margin-top: 25px; border-bottom: 1px solid #000; width: 75%; margin-left: auto; margin-right: auto;"></div>
         <div style="font-size: 8px; font-weight: bold; text-transform: uppercase; margin-top: 3px;">Assinatura do Cliente</div>
       </div>
@@ -448,7 +448,7 @@ export function generateThermalReceiptHtml(data: ReceiptData): string {
     ${
       data.paymentMethod !== 'FIADO' && data.amountPaid !== undefined && data.amountPaid > 0
         ? `
-      <div class="row" style="font-size: 10px;">
+      <div class="row" style="font-size: 9.5px;">
         <span>VALOR PAGO:</span>
         <span>${formatCurrency(data.amountPaid)}</span>
       </div>
@@ -458,7 +458,7 @@ export function generateThermalReceiptHtml(data: ReceiptData): string {
     ${
       data.paymentMethod !== 'FIADO' && (data.troco || 0) > 0
         ? `
-      <div class="row bold" style="font-size: 10px;">
+      <div class="row bold" style="font-size: 9.5px;">
         <span>TROCO:</span>
         <span>${formatCurrency(data.troco || 0)}</span>
       </div>
@@ -467,14 +467,14 @@ export function generateThermalReceiptHtml(data: ReceiptData): string {
     }
   ` : `
     <div class="divider"></div>
-    <div class="text-center" style="font-size: 9px; font-style: italic; color: #444; padding: 2px 0;">
+    <div class="text-center" style="font-size: 8.5px; font-style: italic; color: #444; padding: 2px 0;">
       ${data.quotationNotes || 'Orçamento sujeito a alteração de preço e disponibilidade de estoque.'}
     </div>
   `}
 
   <div class="divider"></div>
 
-  <div class="text-center" style="font-size: 10px; padding-top: 2px;">
+  <div class="text-center" style="font-size: 9.5px; padding-top: 2px;">
     <div class="bold">OBRIGADO PELA PREFERÊNCIA!</div>
     <div>VOLTE SEMPRE!</div>
   </div>

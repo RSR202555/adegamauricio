@@ -532,11 +532,18 @@ export function printThermalReceipt(data: ReceiptData) {
 
   const img = doc.querySelector('img');
   if (img && !img.complete) {
-    img.onload = () => setTimeout(doPrint, 120);
-    img.onerror = () => doPrint();
-    setTimeout(doPrint, 800);
+    let done = false;
+    const trigger = () => {
+      if (!done) {
+        done = true;
+        doPrint();
+      }
+    };
+    img.onload = () => setTimeout(trigger, 40);
+    img.onerror = () => trigger();
+    setTimeout(trigger, 250);
   } else {
-    setTimeout(doPrint, 120);
+    setTimeout(doPrint, 50);
   }
 }
 

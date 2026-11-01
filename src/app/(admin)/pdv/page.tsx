@@ -851,64 +851,42 @@ export default function PDVFrenteDeCaixaPage() {
     setActivePrintData(formatted);
     setIsPrinting(true);
 
-    // 1. Tenta envio direto para o Agente Local (http://127.0.0.1:9123/print) se estiver rodando
-    try {
-      const agentCtrl = new AbortController();
-      const agentTimeout = setTimeout(() => agentCtrl.abort(), 800);
+    // Se estiver rodando localmente (localhost), pode tentar envio direto ao spooler do Windows
+    const isLocalhost = typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-      const agentRes = await fetch('http://127.0.0.1:9123/print', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer mauri-pos-secret-2026',
-        },
-        body: JSON.stringify({
-          type: 'SALE',
-          data: formatted,
-        }),
-        signal: agentCtrl.signal,
-      });
-      clearTimeout(agentTimeout);
+    if (isLocalhost) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1200);
 
-      if (agentRes.ok) {
-        setIsPrinting(false);
-        return;
+        const response = await fetch('/api/print', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            data: formatted,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        const resData = await response.json().catch(() => null);
+        if (response.ok && resData?.success) {
+          setIsPrinting(false);
+          return;
+        }
+      } catch {
+        // Segue para impressão nativa via navegador
       }
-    } catch {
-      // Agente local não respondeu, tenta endpoint /api/print
     }
 
-    // 2. Tenta envio direto para o Windows Spooler via backend local (/api/print)
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
-
-      const response = await fetch('/api/print', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          data: formatted,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      const resData = await response.json().catch(() => null);
-      if (response.ok && resData?.success) {
-        setIsPrinting(false);
-        return;
-      }
-    } catch {
-      // Falha ou timeout -> prossegue para impressão via navegador
-    }
-
-    // 3. Fallback: dispara a impressão isolada dedicada para a bobina POS-80 (evita corte de estilos ou tela em branco)
+    // DISPARO IMEDIATO VIA NAVEGADOR (SEM ATRASO DE REDE PARA NÃO SER BLOQUEADO PELO NAVEGADOR)
+    printThermalReceipt(formatted);
     setTimeout(() => {
-      printThermalReceipt(formatted);
       setIsPrinting(false);
-    }, 50);
+    }, 600);
   }
 
   // ============================================================================

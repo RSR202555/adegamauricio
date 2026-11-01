@@ -294,7 +294,7 @@ export default function PDVFrenteDeCaixaPage() {
       if (completedSale) {
         if (e.key === 'F9') {
           e.preventDefault();
-          handlePrintReceipt(completedSale);
+          handlePrintReceipt(completedSale, false, true);
           return;
         }
         if (e.key === 'Enter' || e.key === 'Escape' || e.key === ' ') {
@@ -816,7 +816,7 @@ export default function PDVFrenteDeCaixaPage() {
   // ============================================================================
   // IMPRESSÃO TÉRMICA DIRETA (SERVIÇO LOCAL POS-80 OU NAVEGADOR)
   // ============================================================================
-  async function handlePrintReceipt(saleData?: any, forceBrowser = false) {
+  async function handlePrintReceipt(saleData?: any, forceBrowser = false, isReprint = false) {
     const rawReceipt = saleData || completedSale || activePrintData;
     if (!rawReceipt) return;
 
@@ -864,6 +864,7 @@ export default function PDVFrenteDeCaixaPage() {
           },
           body: JSON.stringify({
             data: formatted,
+            isReprint,
           }),
           signal: controller.signal,
         });
@@ -1944,7 +1945,7 @@ export default function PDVFrenteDeCaixaPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handlePrintReceipt(completedSale, false)}
+                onClick={() => handlePrintReceipt(completedSale, false, true)}
                 disabled={isPrinting}
                 className="flex-1 text-xs border-stone-800 text-stone-300 hover:text-white"
               >

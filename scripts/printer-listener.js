@@ -214,8 +214,23 @@ const server = http.createServer((req, res) => {
       try {
         const payload = JSON.parse(body);
         const receiptData = payload.data || payload;
+        const saleId = String(receiptData.id || '');
+        const isReprint = payload.isReprint === true || payload.force === true;
+
+        // Evita imprimir 2 vias: Se já foi impresso e NÃO é reimpressão manual, ignora duplicata
+        if (saleId && printedSales.has(saleId) && !isReprint) {
+          console.log(`[DUPLICATA EVITADA] Venda #${saleId.substring(0, 8)} já impressa. Mantendo via única.`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: 'Via única mantida (já impressa)' }));
+          return;
+        }
+
+        if (saleId) {
+          printedSales.add(saleId);
+        }
+
         const text = buildReceiptText(receiptData, receiptData.items || []);
-        await dispatchRawToPrinter(text, receiptData.id ? String(receiptData.id).substring(0, 8) : 'MANUAL');
+        await dispatchRawToPrinter(text, saleId ? saleId.substring(0, 8) : 'MANUAL');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, message: 'Impresso com sucesso na POS-80' }));
       } catch (e) {

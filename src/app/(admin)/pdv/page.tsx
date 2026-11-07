@@ -77,7 +77,7 @@ export default function PDVFrenteDeCaixaPage() {
   // Controle de Impressão Térmica (POS-80) - Padrão AUTOMÁTICO ativado
   const [autoPrint, setAutoPrint] = useState<boolean>(true);
   const [autoCloseModal, setAutoCloseModal] = useState<boolean>(true);
-  const [countdown, setCountdown] = useState<number>(3);
+  const [countdown, setCountdown] = useState<number>(4);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [activePrintData, setActivePrintData] = useState<ReceiptData | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -242,11 +242,11 @@ export default function PDVFrenteDeCaixaPage() {
   // Avanço automático opcional para a próxima venda após impressão
   useEffect(() => {
     if (!completedSale || !autoCloseModal) {
-      setCountdown(3);
+      setCountdown(4);
       return;
     }
 
-    setCountdown(3);
+    setCountdown(4);
     const interval = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
@@ -294,7 +294,8 @@ export default function PDVFrenteDeCaixaPage() {
       if (completedSale) {
         if (e.key === 'F9') {
           e.preventDefault();
-          handlePrintReceipt(completedSale, false, true);
+          setCountdown(4);
+          handlePrintReceipt(completedSale, true, true);
           return;
         }
         if (e.key === 'Enter' || e.key === 'Escape' || e.key === ' ') {
@@ -772,7 +773,7 @@ export default function PDVFrenteDeCaixaPage() {
         companyName: 'Adega e Depósito Mauricio Ltda',
         companyAddress: 'Rua Nova Do Campo, Ao Lado Da Quadra Mimoso, BA',
         companyPhone: '(71) 98103-8699',
-        logoUrl: '/logo.jpg',
+        logoUrl: '/logo-print.png',
         items: saleReceipt.items.map((i: any) => ({
           name: i.displayName || i.product?.name || i.name || 'Produto',
           quantity: i.quantity,
@@ -814,7 +815,7 @@ export default function PDVFrenteDeCaixaPage() {
   }
 
   // ============================================================================
-  // IMPRESSÃO TÉRMICA DIRETA (SERVIÇO LOCAL POS-80 OU NAVEGADOR)
+  // IMPRESSÃO TÉRMICA DIRETA (POS-80)
   // ============================================================================
   async function handlePrintReceipt(saleData?: any, forceBrowser = false, isReprint = false) {
     const rawReceipt = saleData || completedSale || activePrintData;
@@ -827,7 +828,7 @@ export default function PDVFrenteDeCaixaPage() {
       companyName: 'Adega e Depósito Mauricio Ltda',
       companyAddress: 'Rua Nova Do Campo, Ao Lado Da Quadra Mimoso, BA',
       companyPhone: '(71) 98103-8699',
-      logoUrl: '/logo.jpg',
+      logoUrl: '/logo-print.png',
       items: (rawReceipt.items || []).map((i: any) => ({
         name: i.displayName || i.product?.name || i.name || 'Produto',
         quantity: i.quantity,
@@ -851,11 +852,15 @@ export default function PDVFrenteDeCaixaPage() {
     setActivePrintData(formatted);
     setIsPrinting(true);
 
-    if (!forceBrowser) {
-      // 1. Tenta envio direto e silencioso para o Serviço Local de Impressão na porta 9123
+    // Se estiver rodando localmente (HTTP localhost), tenta o serviço direto se disponível
+    const isLocalHttp = typeof window !== 'undefined' &&
+      window.location.protocol === 'http:' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    if (isLocalHttp && !forceBrowser) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1200);
+        const timeoutId = setTimeout(() => controller.abort(), 800);
 
         const response = await fetch('http://127.0.0.1:9123/print', {
           method: 'POST',
@@ -873,25 +878,21 @@ export default function PDVFrenteDeCaixaPage() {
         const resData = await response.json().catch(() => null);
         if (response.ok && resData?.success) {
           setIsPrinting(false);
-          return; // Sucesso silencioso! O diálogo do navegador NUNCA é aberto.
+          return; // Sucesso silencioso no serviço local
         }
       } catch {
-        // Se a chamada HTTP direta falhar por bloqueio de rede privada,
-        // o serviço em background no Windows já detecta a venda salva no Supabase
-        // e imprime automaticamente sem precisar abrir janelas.
-        setIsPrinting(false);
-        return;
+        // Se o serviço local falhar, segue para a impressão térmica via navegador
       }
     }
 
-    // 2. Se o usuário clicou explicitamente em "Via Navegador", abre o diálogo
-    if (forceBrowser) {
-      printThermalReceipt(formatted);
-    }
-
+    // DISPARO IMEDIATO VIA NAVEGADOR (GARANTE IMPRESSÃO NA NUVEM / VERCEL E LOCAL)
+    // 100% funcional na nuvem (Vercel) e no computador local, usando a bobina POS-80.
+    // Em modo Kiosk (--kiosk-printing), imprime silenciosamente e direto sem exibir janela.
+    // Em modo normal, abre o diálogo de impressão configurado para 80mm (igual ao Orçamento).
     setTimeout(() => {
+      printThermalReceipt(formatted);
       setIsPrinting(false);
-    }, 600);
+    }, 50);
   }
 
   // ============================================================================
@@ -975,7 +976,7 @@ export default function PDVFrenteDeCaixaPage() {
       companyName: 'Adega e Depósito Mauricio Ltda',
       companyAddress: 'Rua Nova Do Campo, Ao Lado Da Quadra Mimoso, BA',
       companyPhone: '(71) 98103-8699',
-      logoUrl: '/logo.jpg',
+      logoUrl: '/logo-print.png',
       items: [
         {
           name: 'Cerveja Heineken Long Neck 330ml',
@@ -1904,7 +1905,13 @@ export default function PDVFrenteDeCaixaPage() {
             {/* Status da Impressão Automática */}
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
               <Printer className={`w-3.5 h-3.5 ${isPrinting ? 'animate-bounce' : ''}`} />
-              <span>{isPrinting ? 'Enviando cupom para impressão...' : 'Cupom impresso automaticamente'}</span>
+              <span>
+                {isPrinting
+                  ? 'Enviando cupom para impressão...'
+                  : autoPrint
+                  ? 'Cupom impresso automaticamente'
+                  : 'Impressão automática desativada'}
+              </span>
             </div>
 
             {/* Prévia do Cupom Térmico */}
@@ -1945,7 +1952,10 @@ export default function PDVFrenteDeCaixaPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handlePrintReceipt(completedSale, false, true)}
+                onClick={() => {
+                  setCountdown(4);
+                  handlePrintReceipt(completedSale, true, true);
+                }}
                 disabled={isPrinting}
                 className="flex-1 text-xs border-stone-800 text-stone-300 hover:text-white"
               >
@@ -1955,7 +1965,10 @@ export default function PDVFrenteDeCaixaPage() {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => handlePrintReceipt(completedSale, true)}
+                onClick={() => {
+                  setCountdown(4);
+                  handlePrintReceipt(completedSale, true);
+                }}
                 className="text-xs px-2.5 border-stone-800 text-stone-400 hover:text-white"
                 title="Abrir pré-visualização do navegador"
               >
@@ -2038,12 +2051,12 @@ export default function PDVFrenteDeCaixaPage() {
               </Button>
               <Button
                 type="button"
-                onClick={() => handlePrintReceipt(activePrintData)}
+                onClick={() => handlePrintReceipt(activePrintData, true)}
                 disabled={isPrinting}
                 className="flex-1 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20"
               >
                 <Printer className="w-3.5 h-3.5" />
-                {isPrinting ? 'Enviando...' : 'Direto USB (Spooler)'}
+                {isPrinting ? 'Enviando...' : 'Imprimir Cupom Teste'}
               </Button>
             </div>
           </div>

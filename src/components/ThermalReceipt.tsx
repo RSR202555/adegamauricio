@@ -492,11 +492,15 @@ export function printThermalReceipt(data: ReceiptData) {
   if (typeof window === 'undefined') return;
 
   let frame = document.getElementById('thermal-print-iframe') as HTMLIFrameElement;
-  if (!frame) {
-    frame = document.createElement('iframe');
-    frame.id = 'thermal-print-iframe';
-    document.body.appendChild(frame);
+  if (frame) {
+    try {
+      frame.remove();
+    } catch {}
   }
+
+  frame = document.createElement('iframe');
+  frame.id = 'thermal-print-iframe';
+  document.body.appendChild(frame);
 
   // IMPORTANTE: O iframe NÃO pode ter width: 0 ou height: 0, caso contrário o Chrome
   // renderiza um documento com dimensões zeradas e gera uma folha 100% em branco!
